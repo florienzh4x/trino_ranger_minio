@@ -1,0 +1,43 @@
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration xmlns:xi="http://www.w3.org/2001/XInclude">
+        
+    <property>
+        <name>xasecure.audit.is.enabled</name>
+        <value>true</value>
+    </property>
+
+    <property>
+        <name>xasecure.audit.destination.elasticsearch</name>
+        <value>true</value>
+    </property>
+
+    <property>
+        <name>xasecure.audit.destination.elasticsearch.urls</name>
+        <value>elasticsearch</value>
+    </property>
+
+    <property>
+        <name>xasecure.audit.destination.elasticsearch.user</name>
+        <value>elastic</value>
+    </property>
+
+    <property>
+        <name>xasecure.audit.destination.elasticsearch.password</name>
+        <value>elasticsearch</value>
+    </property>
+
+    <property>
+        <name>xasecure.audit.destination.elasticsearch.index</name>
+        <value>ranger_audits</value>
+    </property>
+
+    <property>
+        <name>xasecure.audit.destination.elasticsearch.port</name>
+        <value>9200</value>
+    </property>
+
+    <property>
+        <name>xasecure.audit.destination.elasticsearch.protocol</name>
+        <value>http</value>
+    </property>
+</configuration>

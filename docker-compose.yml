@@ -1,0 +1,171 @@
+x-trino-common:
+  &trino-common
+  build:
+    context: ./trino
+    dockerfile: Dockerfile
+    args:
+      - TRINO_VERSION=476
+      - JARS_DIRECTORY=/usr/lib/trino/plugin/hive
+      - HADOOP_AWS_JAR_VERSION=3.3.4
+      - MINIO_JAR_VERSION=8.5.17
+      - AWS_BUNDLE_JAR_VERSION=1.12.782
+  image: trino_ranger
+  networks:
+    - ranger-net
+  environment:
+    &trino-env
+    TRINO_DISCOVERY_URI: http://trino-coordinator:8080
+
+services:
+  elasticsearch:
+    image: elasticsearch:8.18.3
+    container_name: elasticsearch
+    hostname: elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms500m -Xmx500m
+    ports:
+      - 9200:9200
+    volumes:
+      - ranger-elasticsearch:/usr/share/elasticsearch/data
+    networks:
+      - ranger-net
+
+  postgresql:
+    image: postgres:17
+    container_name: postgres
+    hostname: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ranger
+    volumes:
+      - ranger-postgresql:/var/lib/postgresql/data
+    networks:
+      - ranger-net
+
+  metastore-postgres:
+    image: postgres:17
+    container_name: hive_postgres
+    environment:
+      POSTGRES_DB: metastore
+      POSTGRES_USER: hive
+      POSTGRES_PASSWORD: hivepassword
+    volumes:
+      - hive_postgres_data:/var/lib/postgresql/data
+    networks:
+      - ranger-net
+
+  hive-metastore:
+    build:
+      context: ./hive
+      dockerfile: Dockerfile
+      args:
+        - HIVE_VERSION=4.0.1
+        - JARS_DIRECTORY=/opt/hive/lib
+        - HADOOP_AWS_JAR_VERSION=3.3.4
+        - MINIO_JAR_VERSION=8.5.17
+        - POSTGRESQL_JAR_VERSION=42.7.5
+        - AWS_BUNDLE_JAR_VERSION=1.12.782
+    image: hive_image
+    container_name: hive-metastore
+    environment:
+      SERVICE_NAME: metastore
+      HIVE_METASTORE_USER: hive
+      HIVE_METASTORE_PASSWORD: hivepassword
+      HIVE_METASTORE_DB_HOST: hive_postgres
+      HIVE_METASTORE_DB_NAME: metastore
+      HIVE_METASTORE_DB_TYPE: postgres
+    depends_on:
+      - metastore-postgres
+    ports:
+      - "29083:9083"
+    volumes:
+      - hive_metastore_data:/opt/hive/data
+      - "./hive/core-site.xml:/opt/hive/conf/core-site.xml"
+    networks:
+      - ranger-net
+
+  ranger:
+    build: 
+      context: ./ranger
+      dockerfile: Dockerfile
+    container_name: ranger-admin
+    hostname: ranger-admin
+    image: ranger-admin:2.6.0
+    entrypoint: /usr/local/bin/docker-entrypoint.sh
+    ports:
+      - "6080:6080"
+    networks:
+      - ranger-net
+    depends_on:
+      - postgresql
+      - elasticsearch
+  
+  minio:
+    image: minio/minio
+    container_name: minio
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=admin123
+      - MINIO_DOMAIN=minio
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    entrypoint: >
+      /bin/sh -c '
+        isAlive() { curl -sf http://minio:9000/minio/health/live; }                             # check if Minio is alive
+        minio $0 "$@" --quiet & echo $! > /tmp/minio.pid                                        # start Minio in the background
+        until isAlive; do sleep 1; done                                                         # wait until Minio is alive
+        echo "MinIO is ready. Proceeding with setup..."
+        mc alias set myminio http://minio:9000 admin admin123                                   # setup Minio client
+        mc mb myminio/data/ --ignore-existing                                              # create test bucket
+        mc anonymous set public myminio/data                                               # make the test bucket public
+        mc admin accesskey create myminio admin --access-key admin_minio --secret-key admin_minio   # make the test bucket public
+        kill -s INT $(cat /tmp/minio.pid) && rm /tmp/minio.pid                                  # stop Minio
+        while isAlive; do sleep 0.1; done                                                       # wait until Minio is stopped
+        exec minio $0 "$@"                                                                      # start Minio in the foreground
+      '
+    command: ["server", "/data", "--console-address", ":9001"]
+    networks:
+      - ranger-net
+
+  trino-coordinator:
+    <<: *trino-common
+    container_name: trino-coordinator
+    ports:
+      - "8080:8080"
+    environment:
+      TRINO_DISCOVERY_URI: http://trino-coordinator:8080
+      TRINO_NODE_ID: coordinator
+    volumes:
+      - ./trino/coordinator-config:/etc/trino
+    command: ["/usr/lib/trino/bin/run-trino"]
+    depends_on:
+      - ranger
+
+  trino-worker-1:
+    <<: *trino-common
+    container_name: trino-worker-1
+    volumes:
+      - ./trino/worker-config-1:/etc/trino
+    environment:
+      <<: *trino-env
+      TRINO_NODE_ID: worker1
+    command: ["/usr/lib/trino/bin/run-trino"]
+    depends_on:
+      - trino-coordinator
+
+volumes:
+  ranger-elasticsearch:
+  ranger-postgresql:
+  minio_data:
+  hive_postgres_data:
+  hive_metastore_data:
+  
+networks:
+  ranger-net:
+    driver: bridge
