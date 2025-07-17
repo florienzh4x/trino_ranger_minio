@@ -414,7 +414,7 @@ Sekarang kita akan melakukan integrasi antara Apache Ranger dan Trino. Untuk mel
 &NewLine;
 Di atas kita melihat bahwa beberapa konfigurasi diharuskan memasukkan nama service trino yang ada di Ranger Admin, dalam hal ini kita mengisi dengan value `trino`. Lalu darimana kita bisa mengetahui nama service tersebut?
 
-Kita bisa mengetahuinya dengan melihat file [trino_service_setup.py](./ranger/trino_service_setup.py). Disitu script python bertugas untuk membuat service di Ranger Admin dengan menggunakan library `apache_ranger`. Script python tersebut akan membuat sebuah service dengan konten dari file json `./ranger/config/trino-service.json` yang sekaligus membuat user dengan username `ranger-admin`. Kemudian script python tersebut akan dijalankan oleh `docker-entrypoint.sh` Apache Ranger sesaat setelah Ranger Admin dijalankan.
+Kita bisa mengetahuinya dengan melihat file [trino_service_setup.py](./ranger/config/trino_service_setup.py). Disitu script python bertugas untuk membuat service di Ranger Admin dengan menggunakan library `apache_ranger`. Script python tersebut akan membuat sebuah service dengan konten dari file json `./ranger/config/trino-service.json` yang sekaligus membuat user dengan username `ranger-admin`. Kemudian script python tersebut akan dijalankan oleh `docker-entrypoint.sh` Apache Ranger sesaat setelah Ranger Admin dijalankan.
 
 ## Deployment
 
